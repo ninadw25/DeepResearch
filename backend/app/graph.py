@@ -1,0 +1,156 @@
+from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolNode 
+import json
+from app.schemas import GraphState
+from app.agents import planner_agent, tool_router, summarizer_agent, decision_agent
+from app.tools import available_tools
+import re
+
+# A helper function to print the state at each step
+def print_state(state: GraphState):
+    print("--- CURRENT STATE ---")
+    print(f"Query: {state['original_query']}")
+    print(f"Questions: {state['research_questions']}")
+    print(f"Findings: {state.get('findings', {})}")
+    print("--------------------")
+
+# Define the nodes of our graph
+def planner_node(state: GraphState) -> GraphState:
+    """
+    Generates the initial research plan.
+    """
+    print("--- 🧠 RUNNING PLANNER ---")
+    state['current_task_status'] = "PLANNING: Generating research questions..."
+    plan = planner_agent.invoke({"query": state["original_query"]})
+    state["research_questions"] = plan.questions
+    
+    # Initialize findings and sources for each question
+    state["findings"] = {q: [] for q in plan.questions}
+    state["sources"] = {q: [] for q in plan.questions}
+    
+    print_state(state)
+    return state
+
+
+def researcher_node(state: GraphState) -> GraphState:
+    """
+    For each research question, route to the best tool and execute it.
+    This node now handles Document objects and separates content from sources.
+    """
+    print("--- 🔍 RUNNING RESEARCHER (with Citation Handling) ---")
+    questions = state["research_questions"]
+    tool_map = {tool.name: tool for tool in available_tools}
+
+    for i, question in enumerate(questions):
+        print(f"--- ❓ RESEARCHING QUESTION: {question} ---")
+        state['current_task_status'] = f"EXECUTING: Researching question {i+1}/{len(questions)}..."
+        
+        tool_name = tool_router.invoke({"question": question}).strip()
+        print(f"--- 🛠️ Selected Tool: {tool_name} ---")
+
+        if tool_name in tool_map:
+            tool_to_call = tool_map[tool_name]
+            # The tool now returns a list of Document objects
+            documents = tool_to_call.invoke({"query": question})
+            
+            # For each document, add content to findings and metadata to sources
+            for doc in documents:
+                state["findings"][question].append(doc.page_content)
+                state["sources"][question].append(doc.metadata)
+        else:
+            state["findings"][question].append(f"Error: Tool '{tool_name}' not found.")
+
+    print("--- ✅ ALL RESEARCH COMPLETE ---")
+    return state
+
+def critique_node(state:GraphState) -> GraphState:
+    """
+    Decide if the current information is sufficient and we can conclude the research or more research is needed.
+    """
+    print("--- Eval and RUNNING Decider ---")
+    
+    # Create a formatted string of all findings and their sources
+    context = ""
+    for i, (question, findings) in enumerate(state['findings'].items()):
+        context += f"Research Question {i+1}: {question}\n\n"
+        for j, finding in enumerate(findings):
+            source_info = state['sources'][question][j]
+            # Use a generic source identifier. A simple URL or title.
+            source = source_info.get('source') or source_info.get('Title')
+            context += f"Finding: {finding}\nSource: {source}\n\n"
+        context += "---\n\n"
+    
+    decision_str = decision_agent.invoke({
+        "context": context,
+        "question": state["original_query"]
+    })
+    
+    # Use regex to find the keyword reliably
+    match = re.search(r'\b(conclude|insufficient)\b', decision_str, re.IGNORECASE)
+    
+    decision = "insufficient" # Default to this for safety
+    if match:
+        decision = match.group(1).lower()
+        
+    print(f"--- 🤔 CRITIQUE DECISION: {decision.upper()} ---")
+    state["decision"] = decision # Store the clean string 'conclude' or 'insufficient'
+    return state
+    
+
+def summarize_node(state: GraphState) -> GraphState:
+    """
+    Synthesizes the findings into a final report.
+    """
+    print("--- ✍️ RUNNING SUMMARIZER ---")
+    state['current_task_status'] = "SUMMARIZING: Compiling final report with citations..."
+
+    # Create a formatted string of all findings and their sources
+    context = ""
+    for i, (question, findings) in enumerate(state['findings'].items()):
+        context += f"Research Question {i+1}: {question}\n\n"
+        for j, finding in enumerate(findings):
+            source_info = state['sources'][question][j]
+            # Use a generic source identifier. A simple URL or title.
+            source = source_info.get('source') or source_info.get('Title')
+            context += f"Finding: {finding}\nSource: {source}\n\n"
+        context += "---\n\n"
+
+    report = summarizer_agent.invoke({
+        "context": context,
+        "query": state["original_query"]
+    })
+    state["final_report"] = report.content
+    return state
+
+def decide_next_step(state: GraphState):
+    if state['decision'] == 'conclude':
+        return "summarizer"
+    else:
+        # Default to researching again if critique is "insufficient" or any other unexpected value
+        return "researcher"
+
+# Define the graph workflow
+workflow = StateGraph(GraphState)
+
+# Add the nodes
+workflow.add_node("planner", planner_node)
+workflow.add_node("researcher", researcher_node)
+workflow.add_node("critique", critique_node)
+workflow.add_node("summarizer", summarize_node)
+
+# Set the entry point
+workflow.set_entry_point("planner")
+
+# Add edges connecting the nodes
+workflow.add_edge("planner", "researcher")
+workflow.add_edge("researcher", "summarizer")
+# workflow.add_edge("researcher", "critique")
+# workflow.add_conditional_edges(
+#     "critique",
+#     decide_next_step,
+#     {"summarizer": "summarizer", "researcher": "researcher"}
+# )
+workflow.add_edge("summarizer", END)
+
+# Compile the graph into a runnable app
+research_worflow = workflow.compile()
