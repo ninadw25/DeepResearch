@@ -33,11 +33,63 @@ def run_research_graph(task_id: str, query: str):
     # The initial state for our graph
     initial_state = {"original_query": query}
     
-    # The `stream` method executes the graph and yields the state at each step
-    for step in research_graph.stream(initial_state):
-        # The key of the dictionary is the name of the node that just ran
-        node_name = list(step.keys())[0]
-        current_state = step[node_name]
+    # FIX: Run the initial invoke call directly. It's fast and will pause
+    # before returning, which prevents the race condition.
+    try:
+        research_graph.invoke(initial_state, config)
+    except Exception as e:
+        print(f"Error during initial planning for task {task_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to start research task.")
+
+
+    return TaskResponse(task_id=task_id)
+
+
+@app.post("/resume/{task_id}", response_model=StatusResponse)
+async def resume_research(
+    task_id: str, 
+    request: ResumeRequest, 
+    background_tasks: BackgroundTasks
+):
+    """
+    Resumes a paused research task with the user-approved research plan.
+    """
+    # FIX: We now send a dictionary containing both the questions and the task_id
+    # to match the structure expected by the human_approval_node.
+    resume_value = {
+        "research_questions": request.research_questions,
+        "task_id": task_id
+    }
+    background_tasks.add_task(_resume_and_run_to_completion, task_id, resume_value)
+    
+    return StatusResponse(
+        task_id=task_id, 
+        status="RESUMED", 
+        details="Research is continuing in the background."
+    )
+
+
+@app.get("/status/{task_id}", response_model=GraphStateResponse)
+async def get_task_status(task_id: str):
+    """
+    Retrieves the current state of a research task.
+    """
+    config = {"configurable": {"thread_id": task_id}}
+    
+    try:
+        # FIX: Call .get_state() on the graph object, not the memory saver.
+        state_snapshot = research_graph.get_state(config)
+    except Exception:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
+
+    current_state_values = state_snapshot.values
+    
+    if state_snapshot.interrupts:
+        status = "AWAITING_INPUT"
+        questions = state_snapshot.interrupts[0].value.get("research_questions")
+    else:
+        status = "COMPLETE"
+        questions = current_state_values.get("research_questions")
         
         # Update the shared tasks dictionary with the latest status
         tasks[task_id] = {
