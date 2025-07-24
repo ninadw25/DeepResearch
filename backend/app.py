@@ -1,8 +1,7 @@
 import streamlit as st
 import requests
 import time
-import os
-from dotenv import load_dotenv
+import json
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -13,17 +12,14 @@ st.set_page_config(
 )
 
 # --- Backend Configuration ---
-# Make sure your FastAPI backend is running at this address
 BACKEND_URL = "http://127.0.0.1:8000"
 
 # --- Helper Functions ---
-def start_research_task(query, provider):
-    """Sends a request to the backend to start a new research task."""
+def start_research_task(query):
+    """Sends a request to start a new research task."""
     try:
-        # Note: The provider choice here is for display. 
-        # Ensure your backend is actually running with the selected provider.
         response = requests.post(f"{BACKEND_URL}/research", json={"query": query})
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
         st.error(f"Error connecting to backend: {e}")
@@ -36,10 +32,22 @@ def get_task_status(task_id):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        # Don't show an error for 404, as the task might just not be ready
         if e.response and e.response.status_code == 404:
             return {"status": "PENDING", "details": "Task initializing..."}
         st.warning(f"Could not retrieve task status: {e}")
+        return None
+
+def resume_task(task_id, research_questions):
+    """Sends the approved/edited plan to the backend to resume the task."""
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/resume/{task_id}",
+            json={"research_questions": research_questions}
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error resuming task: {e}")
         return None
 
 def get_task_results(task_id):
@@ -53,140 +61,101 @@ def get_task_results(task_id):
         return None
 
 # --- UI Layout ---
+st.sidebar.title("🔬 Agent Configuration")
+st.sidebar.info(
+    "This application demonstrates a multi-agent AI system that can be supervised by a human. "
+    "After generating a plan, the agent will pause and await your approval before executing the research."
+)
 
-# Sidebar for configuration
-with st.sidebar:
-    st.title("🔬 Agent Configuration")
-    st.markdown("Configure the AI agent's settings before starting your research.")
-    
-    # Provider selection
-    # This is a reminder for the user to have the correct backend running.
-    provider = st.selectbox(
-        "Select LLM Provider",
-        ("ollama", "groq", "google"),
-        index=0,
-        help="Ensure your backend's .env file is configured for this provider before starting."
-    )
-    st.info(f"**Reminder:** Your backend must be running with the **{provider.upper()}** provider selected.")
-
-    st.markdown("---")
-    st.markdown(
-        "This application demonstrates a multi-agent AI system that performs deep research on any given topic. "
-        "It autonomously plans research questions, gathers information from multiple sources, and synthesizes the findings into a comprehensive report with citations."
-    )
-
-# Main content area
 st.title("Deep Research AI Agent")
-st.markdown("Welcome! Enter your research query below to begin.")
+st.markdown("Enter your research query below to begin. The agent will generate a plan for your approval.")
 
-# Initialize session state
+# --- Session State Management ---
 if 'task_id' not in st.session_state:
     st.session_state.task_id = None
-if 'research_complete' not in st.session_state:
-    st.session_state.research_complete = False
+if 'task_status' not in st.session_state:
+    st.session_state.task_status = None
+if 'research_questions' not in st.session_state:
+    st.session_state.research_questions = []
 if 'final_report' not in st.session_state:
     st.session_state.final_report = None
 
-# Input form for the research query
-with st.form("research_form"):
-    query = st.text_area(
-        "Enter your research query:",
-        height=150,
-        placeholder="e.g., What is the future of renewable energy, and what are the key challenges and opportunities?"
-    )
-    submitted = st.form_submit_button("🚀 Start Research")
+# --- Main Application Flow ---
 
-    if submitted:
-        if not query:
-            st.warning("Please enter a research query.")
-        else:
-            # Reset state for new research
-            st.session_state.task_id = None
-            st.session_state.research_complete = False
-            st.session_state.final_report = None
-            
-            with st.spinner("Contacting the research agent... Please wait."):
-                task_info = start_research_task(query, provider)
+# 1. Input Form to Start Research
+if not st.session_state.task_id:
+    with st.form("research_form"):
+        query = st.text_area("Enter your research query:", height=150)
+        submitted = st.form_submit_button("🔬 Generate Research Plan")
+        if submitted and query:
+            with st.spinner("Agent is thinking... Contacting the Planner Agent."):
+                task_info = start_research_task(query)
                 if task_info:
                     st.session_state.task_id = task_info.get("task_id")
-                    st.success("Research task started successfully!")
+                    st.success("Task started! Polling for research plan...")
                     st.rerun()
 
-# --- Polling and Display Logic ---
-if st.session_state.task_id and not st.session_state.research_complete:
-    st.info("Research in progress... The agent's findings will appear below in real-time.")
-    
-    # Placeholders for dynamic content
-    status_placeholder = st.empty()
-    questions_placeholder = st.empty()
-    findings_placeholder = st.empty()
+# 2. Polling and HITL Approval Form
+if st.session_state.task_id and st.session_state.task_status != "COMPLETE":
+    with st.spinner("Polling for agent status..."):
+        status_data = get_task_status(st.session_state.task_id)
+        if status_data:
+            st.session_state.task_status = status_data.get("status")
+            st.session_state.research_questions = status_data.get("research_questions", [])
 
-    with st.spinner("The agent is thinking..."):
-        while not st.session_state.research_complete:
-            status_data = get_task_status(st.session_state.task_id)
-
-            if status_data:
-                # Display current status
-                status_placeholder.info(f"**Agent Status:** {status_data.get('details', 'Working...')}")
-                
-                # Display intermediate results if available
-                intermediate_results = status_data.get('intermediate_results', {})
-                
-                if intermediate_results:
-                    # Display Research Questions
-                    questions = intermediate_results.get('questions')
-                    if questions:
-                        with questions_placeholder.container():
-                            with st.expander("📝 **Research Plan** (Generated by Planner Agent)", expanded=True):
-                                for i, q in enumerate(questions):
-                                    st.markdown(f"{i+1}. {q}")
-                    
-                    # Display Findings
-                    findings = intermediate_results.get('findings')
-                    if findings and any(findings.values()):
-                        with findings_placeholder.container():
-                             with st.expander("📚 **Live Research Findings** (Gathered by Executor Agents)", expanded=True):
-                                for question, results in findings.items():
-                                    if results:
-                                        st.markdown(f"**> {question}**")
-                                        for res in results:
-                                            # Truncate long results for cleaner display
-                                            if "No results" in res or "Error" in res:
-                                                st.warning(f"   - {res}")
-                                            else:
-                                                st.text(f"   - {res[:250]}...")
-                                st.markdown("---")
-
-
-                # Check for completion
-                if status_data.get("status") == "COMPLETE":
-                    st.session_state.research_complete = True
-                    st.balloons()
-                    st.success("Research complete! Fetching the final report...")
-                    st.rerun()
-
-                elif status_data.get("status") == "FAILED":
-                    st.error("Research task failed. Please check the backend logs.")
-                    st.session_state.task_id = None # Reset task
-                    break
+    # If agent is waiting for input, show the approval form
+    if st.session_state.task_status == "AWAITING_INPUT" and st.session_state.research_questions:
+        st.info("✅ **Human-in-the-Loop:** The agent has created a plan and is waiting for your approval.")
+        
+        with st.form("approval_form"):
+            st.subheader("📝 Proposed Research Plan")
+            st.markdown("You can edit the research questions below before approving.")
             
-            time.sleep(3) # Wait before polling again
+            # Display questions in editable text areas
+            edited_questions = []
+            for i, q in enumerate(st.session_state.research_questions):
+                edited_q = st.text_area(f"Question {i+1}", value=q, height=100)
+                edited_questions.append(edited_q)
 
-# --- Display Final Report ---
-if st.session_state.research_complete:
+            approve_button = st.form_submit_button("🚀 Approve and Resume Research")
+
+            if approve_button:
+                with st.spinner("Sending approved plan to agent..."):
+                    resume_response = resume_task(st.session_state.task_id, edited_questions)
+                    if resume_response and resume_response.get("status") == "RESUMED":
+                        st.success("Agent has resumed research in the background!")
+                        st.session_state.task_status = "RESUMED"
+                        st.rerun()
+
+    # If agent is running after approval, show progress
+    elif st.session_state.task_status == "RESUMED":
+        st.warning("⏳ **Research in Progress:** The agent is now executing the approved plan. This may take a moment. The page will automatically update when the final report is ready.")
+        time.sleep(5) # Wait before re-checking status
+        st.rerun()
+
+    # If the task is somehow complete, move to the final report stage
+    elif st.session_state.task_status == "COMPLETE":
+        st.rerun()
+    
+    else:
+        # Initial state before the plan is ready
+        st.info("Waiting for the agent to generate the research plan...")
+        time.sleep(3)
+        st.rerun()
+
+
+# 3. Display Final Report
+if st.session_state.task_status == "COMPLETE":
     if not st.session_state.final_report:
-        st.session_state.final_report = get_task_results(st.session_state.task_id)
+        with st.spinner("Fetching final report..."):
+            st.session_state.final_report = get_task_results(st.session_state.task_id)
 
     if st.session_state.final_report:
-        st.markdown("---")
+        st.balloons()
         st.header("📄 Final Research Report")
-        
         report_data = st.session_state.final_report
-        
-        # Display the main summary
         st.markdown(report_data.get("summary", "No summary available."))
         
-        # Display citations in an expander
         with st.expander("📜 **Citations & Sources**"):
             citations = report_data.get("citations", [])
             if citations:
@@ -194,4 +163,12 @@ if st.session_state.research_complete:
                     st.markdown(f"{i+1}. [{citation.get('source')}]({citation.get('source')})")
             else:
                 st.markdown("No citations were generated for this report.")
+        
+        # Add a button to start a new research task
+        if st.button("Start New Research"):
+            st.session_state.task_id = None
+            st.session_state.task_status = None
+            st.session_state.research_questions = []
+            st.session_state.final_report = None
+            st.rerun()
 

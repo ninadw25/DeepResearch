@@ -1,10 +1,18 @@
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode 
+from langgraph.types import interrupt
+
 import json
 from app.schemas import GraphState
 from app.agents import planner_agent, tool_router, summarizer_agent, decision_agent
 from app.tools import available_tools
 import re
+
+import opik
+from opik.integrations.langchain import OpikTracer
+
+# opik.configure(use_local=True)
+opik_tracer = OpikTracer()
 
 # A helper function to print the state at each step
 def print_state(state: GraphState):
@@ -19,7 +27,7 @@ def planner_node(state: GraphState) -> GraphState:
     """
     Generates the initial research plan.
     """
-    print("--- 🧠 RUNNING PLANNER ---")
+    print(f"--- [Task: {state['task_id']}] --- 🧠 RUNNING PLANNER ---")
     state['current_task_status'] = "PLANNING: Generating research questions..."
     plan = planner_agent.invoke({"query": state["original_query"]})
     state["research_questions"] = plan.questions
@@ -31,13 +39,31 @@ def planner_node(state: GraphState) -> GraphState:
     print_state(state)
     return state
 
+def human_approval_node(state: GraphState):
+    """
+    Pauses the graph to wait for human approval.
+    The user can review and edit the research questions.
+    """
+    print(f"--- [Task: {state['task_id']}] --- ✋ PAUSING FOR HUMAN APPROVAL ---")
+
+    # The interrupt() function pauses execution and surfaces the value to the user.
+    # The user's input when resuming will be the return value of this function.
+    approved_questions = interrupt(
+        {
+            "research_questions": state["research_questions"]
+        }
+    )
+
+    # When the graph is resumed, the approved_questions will be the new,
+    # potentially edited, list of questions. We update the state with it.
+    return {"research_questions": approved_questions}
 
 def researcher_node(state: GraphState) -> GraphState:
     """
     For each research question, route to the best tool and execute it.
     This node now handles Document objects and separates content from sources.
     """
-    print("--- 🔍 RUNNING RESEARCHER (with Citation Handling) ---")
+    print(f"--- [Task: {state['task_id']}] --- 🔍 RUNNING RESEARCHER (with Citation Handling) ---")
     questions = state["research_questions"]
     tool_map = {tool.name: tool for tool in available_tools}
 
@@ -67,7 +93,7 @@ def critique_node(state:GraphState) -> GraphState:
     """
     Decide if the current information is sufficient and we can conclude the research or more research is needed.
     """
-    print("--- Eval and RUNNING Decider ---")
+    print(f"--- [Task: {state['task_id']}] --- Eval and RUNNING Decider ---")
     
     # Create a formatted string of all findings and their sources
     context = ""
@@ -101,7 +127,7 @@ def summarize_node(state: GraphState) -> GraphState:
     """
     Synthesizes the findings into a final report.
     """
-    print("--- ✍️ RUNNING SUMMARIZER ---")
+    print(f"--- [Task: {state['task_id']}] --- ✍️ RUNNING SUMMARIZER ---")
     state['current_task_status'] = "SUMMARIZING: Compiling final report with citations..."
 
     # Create a formatted string of all findings and their sources
@@ -134,16 +160,19 @@ workflow = StateGraph(GraphState)
 
 # Add the nodes
 workflow.add_node("planner", planner_node)
+workflow.add_node("human_approval", human_approval_node) #<-- New
 workflow.add_node("researcher", researcher_node)
-workflow.add_node("critique", critique_node)
+# workflow.add_node("critique", critique_node)
 workflow.add_node("summarizer", summarize_node)
 
 # Set the entry point
 workflow.set_entry_point("planner")
 
-# Add edges connecting the nodes
-workflow.add_edge("planner", "researcher")
+#Edges connecting the nodes
+workflow.add_edge("planner", "human_approval")
+workflow.add_edge("human_approval", "researcher") 
 workflow.add_edge("researcher", "summarizer")
+
 # workflow.add_edge("researcher", "critique")
 # workflow.add_conditional_edges(
 #     "critique",
@@ -153,4 +182,8 @@ workflow.add_edge("researcher", "summarizer")
 workflow.add_edge("summarizer", END)
 
 # Compile the graph into a runnable app
-research_worflow = workflow.compile()
+# research_workflow = workflow.compile()
+research_workflow = workflow
+# opik_tracer = OpikTracer(graph=research_workflow.get_graph(xray=True))
+
+# opik_tracer.flush()
