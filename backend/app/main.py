@@ -1,5 +1,6 @@
 import uuid
 from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
 from typing import Dict, Any
 
 from langchain.globals import set_llm_cache
@@ -27,6 +28,20 @@ app = FastAPI(
     description="An API for orchestrating an autonomous research agent.",
     version="1.0.0"
 )
+
+# --- THIS IS THE FIX: Add CORS Middleware ---
+# This allows your React frontend (running on localhost:3000 or another port)
+# to communicate with your FastAPI backend.
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"], # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"], # Allow all headers
+)
+
 
 # Bind the checkpointer to the graph at compile time for consistency.
 research_graph = research_workflow.compile(checkpointer=memory)
@@ -63,8 +78,6 @@ async def start_research(request: ResearchRequest):
         "task_id": task_id
     }
     
-    # FIX: Run the initial invoke call directly. It's fast and will pause
-    # before returning, which prevents the race condition.
     try:
         research_graph.invoke(initial_state, config)
     except Exception as e:
@@ -84,7 +97,10 @@ async def resume_research(
     """
     Resumes a paused research task with the user-approved research plan.
     """
-    resume_value = request.research_questions
+    resume_value = {
+        "research_questions": request.research_questions,
+        "task_id": task_id
+    }
     background_tasks.add_task(_resume_and_run_to_completion, task_id, resume_value)
     
     return StatusResponse(
@@ -102,7 +118,6 @@ async def get_task_status(task_id: str):
     config = {"configurable": {"thread_id": task_id}}
     
     try:
-        # FIX: Call .get_state() on the graph object, not the memory saver.
         state_snapshot = research_graph.get_state(config)
     except Exception:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
@@ -129,7 +144,6 @@ async def get_task_results(task_id: str):
     """
     config = {"configurable": {"thread_id": task_id}}
     try:
-        # FIX: Call .get_state() on the graph object, not the memory saver.
         final_state_snapshot = research_graph.get_state(config)
     except Exception:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
