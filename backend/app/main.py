@@ -1,7 +1,10 @@
 import uuid
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
+from fastapi.responses import JSONResponse
 from typing import Dict, Any
+import asyncio
+import time
 
 from langchain.globals import set_llm_cache
 from langchain_community.cache import InMemoryCache
@@ -138,9 +141,13 @@ async def get_task_status(task_id: str):
 
 
 @app.get("/results/{task_id}", response_model=FinalReport)
-async def get_task_results(task_id: str):
+async def get_task_results(task_id: str, wait: int = Query(0, ge=0, le=30)):
     """
-    Retrieves the final report of a completed research task.
+    Long-polling results endpoint.
+    - If results aren't ready, the server waits up to `wait` seconds before responding.
+    - Returns:
+        200 with FinalReport when ready
+        202 with {"status": "PENDING"} if still not ready after waiting
     """
     config = {"configurable": {"thread_id": task_id}}
     try:
@@ -148,12 +155,8 @@ async def get_task_results(task_id: str):
     except Exception:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
 
-    if final_state_snapshot.interrupts:
-        raise HTTPException(status_code=400, detail="Task is not yet complete. Current status: AWAITING_INPUT")
-
-    final_state_values = final_state_snapshot.values
-    
     all_sources = []
+    final_state_values = final_state_snapshot.values
     for question_sources in final_state_values.get('sources', {}).values():
         all_sources.extend(question_sources)
 
@@ -165,9 +168,28 @@ async def get_task_results(task_id: str):
             unique_citations.append(Citation(source=source_identifier, content=""))
             seen_sources.add(source_identifier)
 
+    def is_ready() -> bool:
+        status = final_state_values.get("status")
+        if status == "COMPLETE":
+            return True
+        findings = final_state_values.get("findings") or {}
+        if isinstance(findings, dict) and any(bool(v) for v in findings.values()):
+            return True
+        return False
+
+    # Long-poll up to `wait` seconds
+    if wait:
+        deadline = time.monotonic() + min(wait, 30)
+        while time.monotonic() < deadline and not is_ready():
+            await asyncio.sleep(0.5)
+
+    if not is_ready():
+        return JSONResponse(status_code=202, content={"status": "PENDING"})
+
     return FinalReport(
         original_query=final_state_values.get("original_query"),
-        summary=final_state_values.get('final_report', "Summarization failed."),
-        findings=[{"question": q, "results": r} for q, r in final_state_values.get('findings', {}).items()],
+        summary=final_state_values.get("final_report", "Summarization failed."),
+        findings=[{"question": q, "results": r}
+                  for q, r in (final_state_values.get("findings") or {}).items()],
         citations=unique_citations
     )

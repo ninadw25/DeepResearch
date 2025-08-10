@@ -3,6 +3,7 @@ from langchain_groq import ChatGroq # Import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_ollama import ChatOllama 
+from langchain_openai import ChatOpenAI  # For OpenRouter compatibility 
 
 
 from pydantic import BaseModel, Field
@@ -33,13 +34,23 @@ elif settings.LLM_PROVIDER == "google":
         google_api_key=settings.GOOGLE_API_KEY,
         temperature=0
     )
+elif settings.LLM_PROVIDER == "openrouter":
+    if not settings.OPENROUTER_API_KEY:
+        raise ValueError("LLM_PROVIDER is set to 'openrouter' but OPENROUTER_API_KEY is missing.")
+    print("🌐 Using OpenRouter as the LLM provider.")
+    llm = ChatOpenAI(
+        api_key=settings.OPENROUTER_API_KEY,
+        base_url="https://openrouter.ai/api/v1",
+        model="anthropic/claude-3.5-sonnet",  # You can change this to your preferred model
+        temperature=0
+    )
 elif settings.LLM_PROVIDER == "ollama":
     print("🗿 Using local Ollama as the LLM provider.")
     # For Ollama, you don't need an API key.
     # Make sure the model name matches what you have pulled.
     llm = ChatOllama(model="gemma3:4b", temperature=0)
 else:
-    raise ValueError(f"Unsupported LLM provider: '{settings.LLM_PROVIDER}'. Please choose 'groq' or 'google'.")
+    raise ValueError(f"Unsupported LLM provider: '{settings.LLM_PROVIDER}'. Please choose 'groq', 'google', 'openrouter', or 'ollama'.")
 
 
 # Define the output structure for the planner using Pydantic
@@ -65,9 +76,8 @@ planner_prompt = ChatPromptTemplate.from_messages(
          "You are an expert research planner. Your goal is to create a step-by-step research plan "
          "to answer the user's query. Generate a list of 3 to 5 specific, answerable questions that, "
          "when combined, will provide a comprehensive answer."
-         "\n\nHere are the available tools you can use for research:\n"
-         "1. arxiv_search: Best for scientific papers and technical research.\n"
-         "2. wikipedia_search: Best for general knowledge, definitions, and historical context."
+         "\n\nIMPORTANT: You should ONLY generate questions. Do NOT use any tools or functions. "
+         "Just create a structured list of research questions."
         ),
         ("user", "User Query: {query}")
     ]
@@ -167,7 +177,7 @@ planner_agent = planner_prompt | llm.with_structured_output(ResearchPlan)
 if settings.LLM_PROVIDER != "ollama":    
     tool_router = (
         router_prompt
-        | llm.bind(tools=converted_tools,tool_choice="none")  # <-- The critical new instruction
+        | llm.bind(tools=converted_tools, tool_choice="none")  # <-- The critical new instruction
         | StrOutputParser()
     )
 else:
@@ -176,11 +186,11 @@ else:
 if settings.LLM_PROVIDER != "ollama":    
     decision_agent = (
         decider_prompt
-        | llm.bind(tools=converted_tools,tool_choice="none")  # <-- The critical new instruction
+        | llm.bind(tools=converted_tools, tool_choice="none")  # <-- The critical new instruction
         | StrOutputParser()
     )
 else:
-    decision_agent = router_prompt | llm | StrOutputParser()
+    decision_agent = decider_prompt | llm | StrOutputParser()
 
 # The summarizer agent is a chain that takes the findings and query and returns a string
 summarizer_agent = summarizer_prompt | llm
