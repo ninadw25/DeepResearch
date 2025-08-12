@@ -20,8 +20,8 @@ class Settings(BaseSettings):
     # --- LLM Provider Switch ---
     # Default to "groq" if not specified in .env
     # LLM_PROVIDER: str = "groq" 
-    LLM_PROVIDER: str = "google" 
-    # LLM_PROVIDER: str = "ollama"
+    # LLM_PROVIDER: str = "google" 
+    LLM_PROVIDER: str = "ollama"
     # LLM_PROVIDER: str = "openrouter" 
 
 # Create a single instance of the settings

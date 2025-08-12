@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import StatusHeader from './approval/StatusHeader';
+import QuestionsList from './approval/QuestionsList';
+import ErrorAlert from './common/ErrorAlert';
 
 export default function ApprovalScreen({ taskId, onPlanApproved }) {
   const [researchQuestions, setResearchQuestions] = useState([]);
@@ -103,7 +106,6 @@ export default function ApprovalScreen({ taskId, onPlanApproved }) {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Generating Research Questions</h2>
             <p className="text-gray-600">Our AI is analyzing your query and generating comprehensive research questions...</p>
           </div>
-          
           <div className="bg-blue-50 rounded-lg p-4">
             <p className="text-sm text-blue-700">This usually takes 10-30 seconds</p>
           </div>
@@ -115,64 +117,21 @@ export default function ApprovalScreen({ taskId, onPlanApproved }) {
   return (
     <div className="w-full max-w-4xl mx-auto animate-fade-in">
       <div className="bg-white rounded-2xl shadow-lg p-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">
-            📋 Review Research Plan
-          </h2>
-          <p className="text-lg text-gray-600">
-            Review and edit the generated research questions. You can modify, add, or remove questions as needed.
-          </p>
-        </div>
+        <StatusHeader 
+          title="Review Research Plan" 
+          description="Review and edit the generated research questions. You can modify, add, or remove questions as needed." 
+        />
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center">
-              <div className="text-red-400 mr-3">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <p className="text-red-700 text-sm">{error}</p>
-            </div>
-          </div>
-        )}
+        <ErrorAlert message={error} className="mb-6" />
 
-        {/* Research Questions */}
-        <div className="space-y-4 mb-8">
-          <h3 className="text-xl font-semibold text-gray-900 mb-4">Research Questions</h3>
-          
-          {researchQuestions.map((question, index) => (
-            <div key={index} className="flex items-start space-x-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mt-1">
-                <span className="text-sm font-semibold text-blue-600">{index + 1}</span>
-              </div>
-              <div className="flex-1">
-                <textarea
-                  value={question}
-                  onChange={(e) => handleQuestionChange(index, e.target.value)}
-                  placeholder="Enter research question..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-colors"
-                  rows={2}
-                />
-              </div>
-              {researchQuestions.length > 1 && (
-                <button
-                  onClick={() => removeQuestion(index)}
-                  className="flex-shrink-0 w-8 h-8 bg-red-100 hover:bg-red-200 rounded-full flex items-center justify-center mt-1 transition-colors"
-                  title="Remove question"
-                >
-                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+        <QuestionsList 
+          questions={researchQuestions}
+          onChange={handleQuestionChange}
+          onRemove={removeQuestion}
+        />
 
         {/* Add Question Button */}
-        <div className="mb-8">
+  <div className="mb-8">
           <button
             onClick={addQuestion}
             className="flex items-center space-x-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
@@ -210,7 +169,7 @@ export default function ApprovalScreen({ taskId, onPlanApproved }) {
           </button>
         </div>
 
-        {/* Info Box */}
+  {/* Info Box */}
         <div className="mt-8 bg-blue-50 rounded-lg p-4">
           <div className="flex items-start">
             <div className="text-blue-400 mr-3 mt-0.5">

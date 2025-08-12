@@ -2,4 +2,6 @@
 /node_modules
 backend/.env
 backend/.env
-backend\app\__pycache__
+backend/app/__pycache__
+backend/.env
+backend/env.txt
