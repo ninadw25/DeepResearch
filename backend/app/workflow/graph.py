@@ -1,9 +1,9 @@
 from langgraph.graph import END, StateGraph
 from langgraph.types import interrupt
 
-from app.schemas import GraphState
-from app.agents import planner_agent, tool_router, summarizer_agent
-from app.tools import available_tools
+from app.models.schemas import GraphState
+from app.workflow.agents import planner_agent, tool_router, summarizer_agent
+from app.utils.tools import available_tools
 
 # --- Helper function for logging ---
 def print_state(state: GraphState):
@@ -60,8 +60,6 @@ def researcher_node(state: GraphState) -> GraphState:
     questions = state["research_questions"]
     tool_map = {tool.name: tool for tool in available_tools}
     
-    # FIX: Ensure findings and sources dictionaries are initialized for ALL questions,
-    # including new ones added by the user.
     if "findings" not in state:
         state["findings"] = {}
     if "sources" not in state:
@@ -137,7 +135,6 @@ def summarize_node(state: GraphState) -> GraphState:
         return state
 
 
-# --- Graph Definition ---
 workflow = StateGraph(GraphState)
 
 workflow.add_node("planner", planner_node)

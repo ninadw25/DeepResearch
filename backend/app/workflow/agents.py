@@ -9,8 +9,8 @@ from langchain_openai import ChatOpenAI  # For OpenRouter compatibility
 from pydantic import BaseModel, Field
 from typing import List, Literal
 import json
-from app.config import settings
-from app.tools import converted_tools
+from app.utils.config import settings
+from app.utils.tools import converted_tools
 
 import re
 

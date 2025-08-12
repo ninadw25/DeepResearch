@@ -3,8 +3,9 @@ import json
 from dotenv import load_dotenv
 from langchain_tavily import TavilySearch
 
-# This function will load your .env file so we can get the API key
 load_dotenv()
+
+# my sample code to check the tavilyapi 
 
 def run_diagnostic():
     """
@@ -22,7 +23,6 @@ def run_diagnostic():
     print(f"--- Sending query: '{test_query}' ---")
 
     try:
-        # We will get the raw result from the tool and inspect it
         raw_result = tavily_tool.invoke({"query": test_query})
 
         print("\n\n--- DIAGNOSTIC REPORT ---")
@@ -31,7 +31,6 @@ def run_diagnostic():
         print(raw_result)
         print("------------------------")
 
-        # Let's try to analyze the result
         if isinstance(raw_result, str):
             print("\n3. Analysis: The result is a STRING.")
             print("   Attempting to parse it as JSON...")

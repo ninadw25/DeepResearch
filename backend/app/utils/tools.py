@@ -6,7 +6,7 @@ from langchain_core.documents import Document # Import the Document class
 from typing import List
 
 import json
-from app.config import settings
+from app.utils.config import settings
 
 # --- Instantiate Tavily Tool ---
 # We keep this instance for its searching capability

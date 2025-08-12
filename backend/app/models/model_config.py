@@ -3,7 +3,7 @@ Model configuration handler for dynamic model selection.
 """
 import os
 from typing import Optional
-from app.config import settings
+from app.utils.config import settings
 
 class ModelConfig:
     """Handles dynamic model configuration based on user selection."""

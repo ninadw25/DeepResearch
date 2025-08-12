@@ -1,18 +1,19 @@
-import uuid
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
 from fastapi.responses import JSONResponse
+
 from typing import Dict, Any
 import asyncio
 import time
+import uuid
 
 from langchain.globals import set_llm_cache
 from langchain_community.cache import InMemoryCache
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from app.graph import research_workflow
-from app.schemas import (
+from app.workflow.graph import research_workflow
+from app.models.schemas import (
     ResearchRequest, 
     TaskResponse, 
     StatusResponse, 
@@ -21,9 +22,8 @@ from app.schemas import (
     GraphStateResponse,
     ResumeRequest
 )
-from app.model_config import ModelConfig
+from app.models.model_config import ModelConfig
 
-# --- Application Setup ---
 set_llm_cache(InMemoryCache())
 memory = InMemorySaver()
 
@@ -33,25 +33,19 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# --- THIS IS THE FIX: Add CORS Middleware ---
-# This allows your React frontend (running on localhost:3000 or another port)
-# to communicate with your FastAPI backend.
 origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"], # Allow all methods (GET, POST, etc.)
-    allow_headers=["*"], # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"], 
 )
 
 
 # Bind the checkpointer to the graph at compile time for consistency.
 research_graph = research_workflow.compile(checkpointer=memory)
-
-
-# --- Background Task Helper for Resuming ---
 
 def _resume_and_run_to_completion(task_id: str, resume_value: Any):
     """
@@ -83,7 +77,7 @@ async def start_research(request: ResearchRequest):
             request.model_provider or "groq", 
             request.api_key
         )
-        # Update environment for this request
+
         ModelConfig.update_environment(model_config)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -191,7 +185,6 @@ async def get_task_results(task_id: str, wait: int = Query(0, ge=0, le=30)):
             return True
         return False
 
-    # Long-poll up to `wait` seconds
     if wait:
         deadline = time.monotonic() + min(wait, 30)
         while time.monotonic() < deadline and not is_ready():
