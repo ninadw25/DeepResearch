@@ -1,36 +1,11 @@
-# Node.js
-node_modules/
-**/node_modules/
-
-# Python
-__pycache__/
-**/__pycache__/
-*.pyc
-
-# Env files
-.env
-**/.env
-env.txt
-**/env.txt
-
-# Build outputs
-dist/
-build/
-.vite/
-.eslintcache
-coverage/
-*.tsbuildinfo
-
-# Editor/OS
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-.vscode/
-.idea/
-
-# Misc
-.parcel-cache/
-.turbo/
-.netlify/
-.vercel/
+/backend/node_modules
+/node_modules
+backend/.env
+backend/.env
+backend/app/__pycache__
+backend/.env
+backend/env.txt
+backend\app\__pycache__
+/backend/app/__pycache__
+backend/app/__pycache__/config.cpython-313.pyc
+backend/app/__pycache__/main.cpython-313.pyc
