@@ -89,13 +89,18 @@ async function getResultsStrict(taskId, { pollIntervalMs = 2000, onProgress } = 
 // If you have an existing api object, replace its getResults implementation:
 export const api = {
   // Start a new research task (long timeout)
-  async startResearch(query) {
+  async startResearch(requestData) {
+    // Handle both old string format and new object format for backward compatibility
+    const body = typeof requestData === 'string' 
+      ? JSON.stringify({ query: requestData })
+      : JSON.stringify(requestData);
+      
     const response = await fetchWithTimeout(`${API_BASE_URL}/research`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ query }),
+      body,
     }, LONG_TIMEOUT_MS);
     
     if (!response.ok) {

@@ -21,6 +21,7 @@ from app.schemas import (
     GraphStateResponse,
     ResumeRequest
 )
+from app.model_config import ModelConfig
 
 # --- Application Setup ---
 set_llm_cache(InMemoryCache())
@@ -76,9 +77,22 @@ async def start_research(request: ResearchRequest):
     task_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": task_id}}
     
+    # Configure model based on user selection
+    try:
+        model_config = ModelConfig.get_model_config(
+            request.model_provider or "groq", 
+            request.api_key
+        )
+        # Update environment for this request
+        ModelConfig.update_environment(model_config)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
     initial_state = {
         "original_query": request.query,
-        "task_id": task_id
+        "task_id": task_id,
+        "model_provider": request.model_provider or "groq",
+        "api_key": request.api_key
     }
     
     try:

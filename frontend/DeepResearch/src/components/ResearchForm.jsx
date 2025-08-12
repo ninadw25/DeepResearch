@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import ErrorAlert from './common/ErrorAlert';
+import ModelSelector from './common/ModelSelector';
 
 export default function ResearchForm({ onResearchStart }) {
   const [query, setQuery] = useState('');
+  const [selectedModel, setSelectedModel] = useState('groq');
+  const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -15,7 +18,13 @@ export default function ResearchForm({ onResearchStart }) {
     setError('');
 
     try {
-      const response = await api.startResearch(query.trim());
+      const requestData = {
+        query: query.trim(),
+        model_provider: selectedModel,
+        ...(apiKey.trim() && { api_key: apiKey.trim() })
+      };
+      
+      const response = await api.startResearch(requestData);
       onResearchStart(response.task_id);
     } catch (err) {
       setError(err.message || 'Failed to start research');
@@ -25,8 +34,8 @@ export default function ResearchForm({ onResearchStart }) {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-lg p-8">
+    <div className="h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="bg-white shadow-2xl rounded-3xl p-12 w-full max-w-4xl flex flex-col justify-center">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-3">
@@ -39,6 +48,14 @@ export default function ResearchForm({ onResearchStart }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Model Selection */}
+          <ModelSelector
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+            apiKey={apiKey}
+            onApiKeyChange={setApiKey}
+          />
+
           <div>
             <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-2">
               Research Question

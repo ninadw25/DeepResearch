@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional, TypedDict
 class ResearchRequest(BaseModel):
     """Request model for starting a new research task."""
     query: str = Field(..., description="The user's research query.")
+    model_provider: Optional[str] = Field(default="groq", description="The LLM provider to use (groq, google, ollama, openrouter)")
+    api_key: Optional[str] = Field(default=None, description="Optional API key for the selected provider")
     # In the future, you could add more fields like 'depth', 'preferred_sources', etc.
 
 class TaskResponse(BaseModel):
@@ -60,4 +62,8 @@ class GraphState(TypedDict):
     current_task_status: str
     final_report: str
     task_id : str
+    
+    # Model configuration
+    model_provider: Optional[str]
+    api_key: Optional[str]
     
