@@ -4,6 +4,7 @@ Model configuration handler for dynamic model selection.
 import os
 from typing import Optional
 from app.utils.config import settings
+from langsmith import Client
 
 class ModelConfig:
     """Handles dynamic model configuration based on user selection."""
@@ -76,3 +77,20 @@ class ModelConfig:
         
         # Update the LLM_PROVIDER setting
         os.environ["LLM_PROVIDER"] = provider
+
+    @staticmethod
+    def setup_langsmith():
+        """Setup LangSmith tracing"""
+        # Check if LangSmith is configured
+        if not os.getenv("LANGCHAIN_API_KEY"):
+            print("⚠️ LangSmith API key not found. Tracing disabled.")
+            return None
+            
+        try:
+            client = Client()
+            project_name = os.getenv("LANGCHAIN_PROJECT", "deep_research_agent")
+            print(f"🔍 LangSmith tracing enabled for project: {project_name}")
+            return client
+        except Exception as e:
+            print(f"⚠️ LangSmith client initialization failed: {e}")
+            return None
