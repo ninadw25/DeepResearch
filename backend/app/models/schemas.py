@@ -8,7 +8,6 @@ class ResearchRequest(BaseModel):
     query: str = Field(..., description="The user's research query.")
     model_provider: Optional[str] = Field(default="groq", description="The LLM provider to use (groq, google, ollama, openrouter)")
     api_key: Optional[str] = Field(default=None, description="Optional API key for the selected provider")
-    # In the future, you could add more fields like 'depth', 'preferred_sources', etc.
 
 class TaskResponse(BaseModel):
     """Response model for acknowledging a task has started."""

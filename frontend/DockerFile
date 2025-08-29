@@ -6,7 +6,7 @@ FROM node:18-alpine AS builder
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy the package.json and package-lock.json first
+# Copy the package.json and package-lock.json first.
 # This takes advantage of Docker caching. If these files don't change,
 # Docker won't re-run 'npm install' on every build.
 COPY package*.json ./
@@ -17,7 +17,7 @@ RUN npm install
 # Copy the rest of the application source code
 COPY . .
 
-# Run the build script to compile the React app into static files
+# Run the build script to compile the React app into static files.
 # The output will be in the /app/build directory.
 RUN npm run build
 
@@ -27,9 +27,11 @@ FROM nginx:1.25-alpine
 
 # Copy the final, optimized build files from our "builder" stage
 # into the directory that Nginx serves files from.
-COPY --from=builder /app/build /usr/share/nginx/html
+# COPY --from=builder /app/build /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expose port 80, which is the default port for Nginx
+
+# Expose port 80, which is the default port for Nginx.
 EXPOSE 80
 
 # The default Nginx command will automatically start the server,

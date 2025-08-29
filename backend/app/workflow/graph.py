@@ -5,18 +5,15 @@ from app.models.schemas import GraphState
 from app.workflow.agents import planner_agent, tool_router, summarizer_agent
 from app.utils.tools import available_tools
 
-# --- Helper function for logging ---
 def print_state(state: GraphState):
     print("--- CURRENT STATE ---")
     print(f"Query: {state['original_query']}")
     print(f"Questions: {state['research_questions']}")
-    # Only print findings if they exist and are not empty
     if findings := state.get('findings'):
         if any(findings.values()):
             print(f"Findings: {state.get('findings', {})}")
     print("--------------------")
 
-# --- Node Definitions ---
 
 def planner_node(state: GraphState) -> GraphState:
     """
@@ -26,8 +23,6 @@ def planner_node(state: GraphState) -> GraphState:
     print(f"--- [Task: {task_id}] --- 🧠 RUNNING PLANNER ---")
     
     plan = planner_agent.invoke({"query": state["original_query"]})
-    
-    # Initialize findings and sources for the generated questions
     state["research_questions"] = plan.questions
     state["findings"] = {q: [] for q in plan.questions}
     state["sources"] = {q: [] for q in plan.questions}
@@ -70,7 +65,6 @@ def researcher_node(state: GraphState) -> GraphState:
         state["sources"].setdefault(q, [])
 
     for question in questions:
-        # Skip questions that already have findings
         if state["findings"][question]:
             print(f"--- ❓ SKIPPING QUESTION (already researched): {question} ---")
             continue
@@ -105,7 +99,6 @@ def summarize_node(state: GraphState) -> GraphState:
         for i, (question, findings) in enumerate(state['findings'].items()):
             context += f"Research Question {i+1}: {question}\n\n"
             for j, finding in enumerate(findings):
-                # Ensure source_info exists and is not out of bounds
                 if j < len(state['sources'][question]):
                     source_info = state['sources'][question][j]
                     source = source_info.get('source') or source_info.get('Title')
@@ -130,7 +123,6 @@ def summarize_node(state: GraphState) -> GraphState:
         print(f"\n---  FATAL ERROR in summarize_node: {e} ---\n")
         import traceback
         traceback.print_exc()
-        # Set a clear error message in the final report
         state["final_report"] = "Error during summarization. The research material may have been too long for the language model to process."
         return state
 

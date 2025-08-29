@@ -11,10 +11,19 @@ from langchain.globals import set_llm_cache
 from langchain_community.cache import InMemoryCache
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
+from langfuse.langchain import CallbackHandler
 
 from app.workflow.graph import research_workflow
 from app.models.schemas import *
 from app.models.model_config import ModelConfig
+
+from app.utils.config import settings
+
+LANGFUSE_PUBLIC_KEY = settings.LANGFUSE_PUBLIC_KEY
+LANGFUSE_SECRET_KEY = settings.LANGFUSE_SECRET_KEY
+LANGFUSE_HOST = settings.LANGFUSE_HOST
+
+langfuse_handler = CallbackHandler()
 
 set_llm_cache(InMemoryCache())
 memory = InMemorySaver()
@@ -36,14 +45,17 @@ app.add_middleware(
 )
 
 
-# Bind the checkpointer to the graph at compile time for consistency.
+# Binded the checkpointer to the graph at compile time for consistency.
 research_graph = research_workflow.compile(checkpointer=memory)
 
 def _resume_and_run_to_completion(task_id: str, resume_value: Any):
     """
     A helper function to resume the graph with a Command and run it to completion.
     """
-    config = {"configurable": {"thread_id": task_id}}
+    config = {
+        "configurable": {"thread_id": task_id},
+        "callbacks": [langfuse_handler]
+    }
     try:
         command = Command(resume=resume_value)
         research_graph.invoke(command, config)
@@ -60,10 +72,12 @@ async def start_research(request: ResearchRequest):
     The graph will run the planner and then pause immediately, guaranteeing
     the state is saved before this endpoint returns.
     """
-    task_id = str(uuid.uuid4())
-    config = {"configurable": {"thread_id": task_id}}
     
-    # Configure model based on user selection
+    task_id = str(uuid.uuid4())
+    config = {
+        "configurable": {"thread_id": task_id},
+        "callbacks": [langfuse_handler] 
+    }    
     try:
         model_config = ModelConfig.get_model_config(
             request.model_provider or "groq", 

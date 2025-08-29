@@ -1,22 +1,22 @@
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_groq import ChatGroq # Import ChatGroq
+from langchain_groq import ChatGroq 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_ollama import ChatOllama 
-from langchain_openai import ChatOpenAI  # For OpenRouter compatibility 
-
+from langchain_openai import ChatOpenAI  
 
 from pydantic import BaseModel, Field
 from typing import List, Literal
+
 import json
+
 from app.utils.config import settings
 from app.utils.tools import converted_tools
 
 import re
 
 # --- LLM Initialization ---
-llm = None # Initialize llm as None
-
+llm = None 
 
 if settings.LLM_PROVIDER == "groq":
     print("🚀 Using Groq as the LLM provider.")
@@ -46,21 +46,17 @@ elif settings.LLM_PROVIDER == "openrouter":
     )
 elif settings.LLM_PROVIDER == "ollama":
     print("🗿 Using local Ollama as the LLM provider.")
-    # For Ollama, you don't need an API key.
-    # Make sure the model name matches what you have pulled.
     llm = ChatOllama(model="gemma3:4b", temperature=0)
 else:
     raise ValueError(f"Unsupported LLM provider: '{settings.LLM_PROVIDER}'. Please choose 'groq', 'google', 'openrouter', or 'ollama'.")
 
 
-# Define the output structure for the planner using Pydantic
 class ResearchPlan(BaseModel):
     """
     The plan of research questions to answer the user's query.
     """
     questions: List[str] = Field(description="A list of 3 to 5 specific questions to research.")
     
-# Define the output structure for our router
 class RouteQuery(BaseModel):
     """
     Specifies the tool to use for a given research question.
@@ -69,7 +65,6 @@ class RouteQuery(BaseModel):
     
 class DecisionResult(BaseModel): choice: Literal['CONCLUDE', 'INSUFFICIENT']
     
-# Create a structured LLM chain for the planner
 planner_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", 
@@ -83,7 +78,6 @@ planner_prompt = ChatPromptTemplate.from_messages(
     ]
 )
 
-# Create a prompt for the router
 router_prompt = ChatPromptTemplate.from_messages(
     [
         ("system",
@@ -192,23 +186,5 @@ if settings.LLM_PROVIDER != "ollama":
 else:
     decision_agent = decider_prompt | llm | StrOutputParser()
 
-# The summarizer agent is a chain that takes the findings and query and returns a string
 summarizer_agent = summarizer_prompt | llm
 
-
-# match = re.search(r'\b(conclude|insufficient)\b', llm_output_string, re.IGNORECASE)
-# decision = "insufficient" # Default to this for safety
-# if match:
-#     # .group(1) gets the matched word ('conclude' or 'insufficient')
-#     # .lower() standardizes it for our logic
-#     decision = match.group(1).lower()
-# print(f"The final decision is: {decision}")
-
-# # Example of how to run it (we will integrate this into our graph later)
-# if __name__ == '__main__':
-#     user_query = "What are the latest advancements in quantum computing and their potential impact on cryptography?"
-#     plan = planner_agent.invoke({"query": user_query})
-#     print(plan.questions)
-#     # Expected output might be:
-#     # ['What are the foundational principles of quantum computing?', 'What recent breakthroughs have occurred in quantum hardware and algorithms?', 'How does quantum computing threaten current cryptographic standards like RSA?', 'What is post-quantum cryptography (PQC)?']
-    

@@ -1,25 +1,31 @@
-# Backend Dockerfile
+# Step 1: Start with an official, lightweight Python base image.
+# This gives us a clean Linux environment with Python 3.11 already installed.
 FROM python:3.11-slim
 
-# Set working directory
+# Step 2: Set the working directory inside the container.
+# All subsequent commands will run from this '/app' directory.
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy requirements first (for better caching)
+# Step 3: Copy only the requirements file first.
+# This is a key optimization. Docker builds in layers, and it caches them.
+# As long as your requirements.txt doesn't change, Docker won't need to
+# reinstall all the libraries every time you change your source code.
 COPY requirements.txt .
 
-# Install Python dependencies
+# Step 4: Install the Python dependencies inside the container.
+# The --no-cache-dir flag keeps the image size smaller.
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application code
+# Step 5: Copy the rest of your application code into the container.
+# The first '.' means "copy everything from the current directory on my machine"
+# The second '.' means "paste it into the current working directory (/app) inside the container."
 COPY . .
 
-# Expose the port
+# Step 6: Expose the port that the application will run on.
+# This tells Docker that the container will be listening for traffic on port 8000.
 EXPOSE 8000
 
-# Command to run the application
+# Step 7: Define the command to run when the container starts.
+# This is the same command we use to run our server locally.
+# The "--host 0.0.0.0" is crucial to make the server accessible from outside the container.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -10,3 +10,9 @@ backend\app\__pycache__
 backend/app/__pycache__/config.cpython-313.pyc
 backend/app/__pycache__/main.cpython-313.pyc
 backend/.env
+start.bat
+langfuse/
+/backend/app/__pycache__
+/backend/app/utils/__pycache__
+.venv
+backend/.env

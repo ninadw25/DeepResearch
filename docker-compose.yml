@@ -1,0 +1,32 @@
+# This is where we define our services (the containers)
+services:
+  
+  # 1. The Backend Service
+  backend:
+    # Tells Docker Compose to build this container using the Dockerfile
+    # located in the './backend' directory
+    build:
+      context: ./backend
+    # Maps port 8000 on your local machine to port 8000 inside the container,
+    # so you can access the API.
+    ports:
+      - "8000:8000"
+    # Loads the environment variables from the .env file in the backend folder,
+    # which is crucial for your API keys.
+    env_file:
+      - ./backend/.env
+
+  # 2. The Frontend Service
+  frontend:
+    # Tells Docker Compose to build this container using the Dockerfile
+    # located in the './frontend' directory
+    build:
+      context: ./frontend
+    # Maps port 3000 on your local machine to port 80 inside the Nginx container,
+    # so you can view the website at http://localhost:3000.
+    ports:
+      - "3001:80"
+    # This is a crucial instruction. It tells Docker Compose to wait until the
+    # 'backend' service is up and running before starting the 'frontend'.
+    depends_on:
+      - backend
