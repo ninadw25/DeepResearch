@@ -5,6 +5,9 @@ from app.models.schemas import GraphState
 from app.workflow.agents import planner_agent, tool_router, summarizer_agent
 from app.utils.tools import available_tools
 
+from mem0 import Memory
+mem0 = Memory()
+
 def print_state(state: GraphState):
     print("--- CURRENT STATE ---")
     print(f"Query: {state['original_query']}")
@@ -21,8 +24,16 @@ def planner_node(state: GraphState) -> GraphState:
     """
     task_id = state.get('task_id', 'UNKNOWN')
     print(f"--- [Task: {task_id}] --- 🧠 RUNNING PLANNER ---")
+    # Search existing db and mem
+    print("Searching memory for relevant context...")
+    retrieved_memories = mem0.search(query=state["original_query"], user_id=state["task_id"])
+    state["memories"] = retrieved_memories
+    print(f"Found {len(retrieved_memories)} relevant memories.")
     
-    plan = planner_agent.invoke({"query": state["original_query"]})
+    plan = planner_agent.invoke({
+        "query": state["original_query"],
+        "memories": retrieved_memories  # Mem0 Memory layer adding here
+    })
     state["research_questions"] = plan.questions
     state["findings"] = {q: [] for q in plan.questions}
     state["sources"] = {q: [] for q in plan.questions}
@@ -112,7 +123,8 @@ def summarize_node(state: GraphState) -> GraphState:
 
         report = summarizer_agent.invoke({
             "context": context,
-            "query": state["original_query"]
+            "query": state["original_query"],
+            "memories": state.get("memories", [])
         })
         
         print("4. Summarizer agent finished successfully.")
@@ -126,6 +138,14 @@ def summarize_node(state: GraphState) -> GraphState:
         state["final_report"] = "Error during summarization. The research material may have been too long for the language model to process."
         return state
 
+def memorize_node(state: GraphState) -> GraphState:
+    """
+    The final report data is stored in the mem0 database for efficient memory mangament
+    """
+    task_id = state.get('task_id', 'UNKNOWN')
+    final_report=state["final_report"]
+    mem0.add(final_report,user_id=task_id)      # Can also add user prompt and final report for better context...
+    return state
 
 workflow = StateGraph(GraphState)
 
@@ -133,13 +153,15 @@ workflow.add_node("planner", planner_node)
 workflow.add_node("human_approval", human_approval_node)
 workflow.add_node("researcher", researcher_node)
 workflow.add_node("summarizer", summarize_node)
+workflow.add_node("memorizer", memorize_node)
 
 workflow.set_entry_point("planner")
 
 workflow.add_edge("planner", "human_approval")
 workflow.add_edge("human_approval", "researcher")
 workflow.add_edge("researcher", "summarizer")
-workflow.add_edge("summarizer", END)
+workflow.add_edge("summarizer","memorizer")
+workflow.add_edge("memorizer", END)
 
 # research_workflow = workflow.compile()
 research_workflow = workflow

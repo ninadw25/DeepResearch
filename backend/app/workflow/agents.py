@@ -69,12 +69,16 @@ planner_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", 
          "You are an expert research planner. Your goal is to create a step-by-step research plan "
-         "to answer the user's query. Generate a list of 3 to 5 specific, answerable questions that, "
+         "to answer the user's query. Generate a list of 3 to 6 specific, answerable questions that, "
          "when combined, will provide a comprehensive answer."
          "\n\nIMPORTANT: You should ONLY generate questions. Do NOT use any tools or functions. "
          "Just create a structured list of research questions."
-        ),
-        ("user", "User Query: {query}")
+         "You have also been provided with a list of relevant memories from past research. Use these memories to create a more focused and advanced research plan. "
+         "Do not generate questions that are already answered in the provided memories. Instead, focus on questions that will uncover new information or go deeper into the topic.\n\n"
+         "--- RELEVANT MEMORIES ---\n"
+         "{memories}\n"
+         "--- END MEMORIES ---"        ),
+        ("user", "Based on the provided memories, create a research plan for the following query: {query}")
     ]
 )
 
@@ -161,8 +165,12 @@ summarizer_prompt = ChatPromptTemplate.from_messages(
          "--- BEGIN RESEARCH MATERIAL ---\n"
          "{context}"
          "--- END RESEARCH MATERIAL ---"
+         "In addition to the research material You have also been given a user's query, a list of RELEVANT MEMORIES from past research, and a list of NEW FINDINGS from recent research.\n"
+         "At the end of the report, include a 'Citations' section. The RELEVANT MEMORIES do not need to be cited.\n\n"
+         "--- RELEVANT MEMORIES ---\n"
+         "{memories}\n"
         ),
-        ("user", "My original query was: '{query}'. Now, please generate the full report based on the provided research material.")
+        ("user", "My original query was: '{query}'. Now, please generate the full report based on the provided research material and previous memories.")
     ]
 )
 

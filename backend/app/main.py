@@ -18,10 +18,14 @@ from app.models.schemas import *
 from app.models.model_config import ModelConfig
 
 from app.utils.config import settings
+import os
+# LANGFUSE_PUBLIC_KEY = settings.LANGFUSE_PUBLIC_KEY
+# LANGFUSE_SECRET_KEY = settings.LANGFUSE_SECRET_KEY
+# LANGFUSE_HOST = settings.LANGFUSE_HOST
 
-LANGFUSE_PUBLIC_KEY = settings.LANGFUSE_PUBLIC_KEY
-LANGFUSE_SECRET_KEY = settings.LANGFUSE_SECRET_KEY
-LANGFUSE_HOST = settings.LANGFUSE_HOST
+os.environ["LANGFUSE_PUBLIC_KEY"] = "pk-lf-91c2824e-94b5-4c42-acf2-d59627d04e61"
+os.environ["LANGFUSE_SECRET_KEY"] = "sk-lf-4a368a1a-916a-4aad-8d20-d56bc6968300"
+os.environ["LANGFUSE_HOST"] = "https://cloud.langfuse.com"
 
 langfuse_handler = CallbackHandler()
 

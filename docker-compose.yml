@@ -1,7 +1,6 @@
 # This is where we define our services (the containers)
 services:
-  
-  # 1. The Backend Service
+
   backend:
     # Tells Docker Compose to build this container using the Dockerfile
     # located in the './backend' directory
@@ -16,7 +15,7 @@ services:
     env_file:
       - ./backend/.env
 
-  # 2. The Frontend Service
+
   frontend:
     # Tells Docker Compose to build this container using the Dockerfile
     # located in the './frontend' directory
@@ -30,3 +29,7 @@ services:
     # 'backend' service is up and running before starting the 'frontend'.
     depends_on:
       - backend
+
+# This defines the persistent volume we created for the mem0-server.
+volumes:
+  mem0_data:

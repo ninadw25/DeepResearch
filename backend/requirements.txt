@@ -18,3 +18,5 @@ langchain-ollama
 tavily-python
 langchain_tavily
 opik
+mem0ai
+langfuse

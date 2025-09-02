@@ -49,6 +49,7 @@ class GraphState(TypedDict):
     """
     original_query: str
     research_questions: List[str]
+    memories: List[Dict]
     
     # Each key in findings is a research_question
     findings: Dict[str, List[str]]
