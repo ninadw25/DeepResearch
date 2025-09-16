@@ -18,3 +18,4 @@ langchain-ollama
 tavily-python
 langchain_tavily
 opik
+langfuse

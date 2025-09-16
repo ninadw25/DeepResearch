@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://127.0.0.1:8000';
+// const API_BASE_URL = 'http://127.0.0.1:8000';    // Local Url
+const API_BASE_URL = 'https://deepresearchbackend.victoriousdune-f3f8dc93.centralindia.azurecontainerapps.io';  // Azure URL
 
 // Different timeouts for different operations
 const LONG_TIMEOUT_MS = 600000; // 10 minutes for research operations
