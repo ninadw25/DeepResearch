@@ -28,6 +28,8 @@ langfuse_handler = CallbackHandler()
 set_llm_cache(InMemoryCache())
 memory = InMemorySaver()
 
+final_results: Dict[str, Any] = {}
+
 app = FastAPI(
     title="Deep Research AI Agent API",
     description="An API for orchestrating an autonomous research agent.",
@@ -58,10 +60,17 @@ def _resume_and_run_to_completion(task_id: str, resume_value: Any):
     }
     try:
         command = Command(resume=resume_value)
-        research_graph.invoke(command, config)
-        print(f"--- [Task: {task_id}] --- ✅ Completed final run. ---")
+        # Capture the final state returned by the invoke call
+        final_state = research_graph.invoke(command, config)
+        
+        # Store the completed state in our "finish line" dictionary
+        final_results[task_id] = final_state
+        
+        print(f"--- [Task: {task_id}] --- ✅ Completed final run and stored result. ---")
     except Exception as e:
         print(f"Error in resume background task for {task_id}: {e}")
+        # Store an error state so the frontend knows something went wrong
+        final_results[task_id] = {"error": str(e)}
 
 # --- API Endpoints ---
 
@@ -132,6 +141,13 @@ async def get_task_status(task_id: str):
     """
     Retrieves the current state of a research task.
     """
+    # First, check if the task is already complete in our final results dict
+    if task_id in final_results:
+        final_state_values = final_results[task_id]
+        return GraphStateResponse(
+            status="COMPLETE",
+            research_questions=final_state_values.get("research_questions")
+        )
     config = {"configurable": {"thread_id": task_id}}
     
     try:
@@ -145,8 +161,8 @@ async def get_task_status(task_id: str):
         status = "AWAITING_INPUT"
         questions = state_snapshot.interrupts[0].value.get("research_questions")
     else:
-        status = "COMPLETE"
-        questions = current_state_values.get("research_questions")
+        status = "RUNNING"
+        questions = state_snapshot.values.get("research_questions")
         
     return GraphStateResponse(
         status=status,
@@ -155,22 +171,23 @@ async def get_task_status(task_id: str):
 
 
 @app.get("/results/{task_id}", response_model=FinalReport)
-async def get_task_results(task_id: str, wait: int = Query(0, ge=0, le=30)):
+async def get_task_results(task_id: str):
     """
-    Long-polling results endpoint.
-    - If results aren't ready, the server waits up to `wait` seconds before responding.
-    - Returns:
-        200 with FinalReport when ready
-        202 with {"status": "PENDING"} if still not ready after waiting
+    Retrieves the final report of a completed research task.
+    This now looks in our dedicated 'final_results' dictionary.
     """
-    config = {"configurable": {"thread_id": task_id}}
-    try:
-        final_state_snapshot = research_graph.get_state(config)
-    except Exception:
-        raise HTTPException(status_code=404, detail=f"Task {task_id} not found.")
+    # Check if the task is in our "finish line" dictionary
+    if task_id not in final_results:
+        # If not, the task is either still running or doesn't exist.
+        raise HTTPException(status_code=400, detail="Task is not yet complete.")
 
+    final_state_values = final_results[task_id]
+    
+    if "error" in final_state_values:
+        raise HTTPException(status_code=500, detail=f"Task failed: {final_state_values['error']}")
+
+    # --- Logic to assemble the final report (this part is unchanged) ---
     all_sources = []
-    final_state_values = final_state_snapshot.values
     for question_sources in final_state_values.get('sources', {}).values():
         all_sources.extend(question_sources)
 
@@ -182,26 +199,9 @@ async def get_task_results(task_id: str, wait: int = Query(0, ge=0, le=30)):
             unique_citations.append(Citation(source=source_identifier, content=""))
             seen_sources.add(source_identifier)
 
-    def is_ready() -> bool:
-        status = final_state_values.get("status")
-        if status == "COMPLETE":
-            return True
-        findings = final_state_values.get("findings") or {}
-        if isinstance(findings, dict) and any(bool(v) for v in findings.values()):
-            return True
-        return False
-
-    if wait:
-        deadline = time.monotonic() + min(wait, 30)
-        while time.monotonic() < deadline and not is_ready():
-            await asyncio.sleep(0.5)
-
-    if not is_ready():
-        return JSONResponse(status_code=202, content={"status": "PENDING"})
-
     return FinalReport(
         original_query=final_state_values.get("original_query"),
-        summary=final_state_values.get("final_report", "Summarization failed."),
+        summary=final_state_values.get('final_report', "Summarization failed."),
         findings=[{"question": q, "results": r}
                   for q, r in (final_state_values.get("findings") or {}).items()],
         citations=unique_citations
