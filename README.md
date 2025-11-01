@@ -79,4 +79,3 @@ Check the tracing from this link: https://cloud.langfuse.com/project/cmeaa5gq500
     * **`Dockerfile` (Backend):** A standard Python container that runs our FastAPI server using `uvicorn`.
     * **`Dockerfile` (Frontend):** A professional, **multi-stage build**. It uses a Node.js "builder" container to compile the React app, then copies the final, optimized static files into a tiny, secure **Nginx** container for serving.
     * **`docker-compose.yml`:** The master blueprint that builds and runs all services, creates a private network for them to communicate, and manages our persistent memory volume.
-```eof
