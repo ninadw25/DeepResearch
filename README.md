@@ -26,14 +26,7 @@ The system's "brain" is built with **LangGraph**. It operates as a stateful grap
 
 This is the agent's most powerful feature. The workflow is architected to explicitly **pause** after the planning stage by calling a `dynamic interrupt`. This allows the user to act as a supervisor, reviewing, editing, and approving the agent's research plan before execution begins. This ensures the agent's work is always aligned with the user's goals.
 
-### 3. Long-Term Memory (Mem0 Integration)
-
-The agent learns and evolves. It is integrated with **Mem0.ai** as a managed, cloud-based memory layer.
-
-* **Memory-Informed Planning:** Before planning, the agent searches its memory for relevant past research to avoid redundant work and create more intelligent, focused plans.
-* **Memory-Augmented Synthesis:** The final report is synthesized from *both* new findings and relevant past memories, allowing the agent to demonstrate accumulated knowledge.
-
-### 4. Full-Stack & Containerized Architecture
+### 3. Full-Stack & Containerized Architecture
 
 The entire application is a decoupled, multi-service system:
 
@@ -41,7 +34,7 @@ The entire application is a decoupled, multi-service system:
 * **Frontend:** A dynamic, responsive user interface built in **React.js**.
 * **Deployment:** The entire application (backend, frontend, and memory services) is fully containerized with **Docker** and orchestrated with **Docker Compose**, making it portable and ready for any cloud environment.
 
-### 5. End-to-End Observability
+### 4. End-to-End Observability
 
 The agent's "mind" is not a black box. The entire workflow, from the initial plan to the final summary, is tracked using **Langfuse**. This allows for deep, step-by-step tracing of the agent's reasoning, tool calls, and performance, which was critical for debugging and optimizing its behavior.
 
