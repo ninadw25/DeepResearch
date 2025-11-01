@@ -4,7 +4,11 @@ DeepResearch is an advanced, multi-agent AI system designed to conduct complex, 
 
 **Watch a live demo of the agent in action:** 
 
-Uploading DeepResearch Agents.mp4…
+
+
+https://github.com/user-attachments/assets/e56e6a45-6212-4d23-94a2-bdd6abfa9f2d
+
+
 
 ## Technical Architecture & Core Features
 
